@@ -20,6 +20,7 @@ import sys
 import time
 from copy import deepcopy
 from datetime import datetime
+from omegaconf import OmegaConf
 from pathlib import Path
 
 import numpy as np
@@ -491,6 +492,10 @@ def parse_opt(known=False):
     parser.add_argument('--bbox_interval', type=int, default=-1, help='W&B: Set bounding-box image logging interval')
     parser.add_argument('--artifact_alias', type=str, default='latest', help='W&B: Version of dataset artifact to use')
 
+    # overwrites
+    parser.add_argument('--overwrites', default=None, required=False, type=str,
+                        help='YAML file overrides. Wrap everything in quotation marks if you overwrite multiple things ("a=3 b=2")')
+
     opt = parser.parse_known_args()[0] if known else parser.parse_args()
     return opt
 
@@ -570,10 +575,19 @@ def main(opt, callbacks=Callbacks()):
                 'mixup': (1, 0.0, 1.0),  # image mixup (probability)
                 'copy_paste': (1, 0.0, 1.0)}  # segment copy-paste (probability)
 
-        with open(opt.hyp, errors='ignore') as f:
-            hyp = yaml.safe_load(f)  # load hyps dict
-            if 'anchors' not in hyp:  # anchors commented in hyp.yaml
-                hyp['anchors'] = 3
+
+        # with open(opt.hyp, errors='ignore') as f:
+        #     hyp = yaml.safe_load(f)  # load hyps dict
+        #     if 'anchors' not in hyp:  # anchors commented in hyp.yaml
+        #         hyp['anchors'] = 3
+
+        hyp = OmegaConf.load(opt.hyp)
+
+        if opt.overwrites is not None:
+            o = opt.overwrites.split(" ")
+            o = OmegaConf.from_cli(o)
+            hyp.merge_with(o)
+
         opt.noval, opt.nosave, save_dir = True, True, Path(opt.save_dir)  # only val/save final epoch
         # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
         evolve_yaml, evolve_csv = save_dir / 'hyp_evolve.yaml', save_dir / 'evolve.csv'
